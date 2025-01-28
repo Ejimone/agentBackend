@@ -1,0 +1,10 @@
+pytz
+openai
+google-generativeai
+python-dotenv
+google-auth-oauthlib
+google-auth
+google-api-python-client
+langchain-openai
+tenacity
+structlog

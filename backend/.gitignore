@@ -1,0 +1,27 @@
+# Environment variables
+.env
+*.env
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+*.log
+
+# OAuth tokens and credentials
+token.json
+credentials.json
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
