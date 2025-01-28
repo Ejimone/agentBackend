@@ -156,7 +156,7 @@ class WeatherService:
                 "message": "Error processing weather data"
             }
 
-async def get_weather_interactive(service: WeatherService) -> None:
+async def get_weather(service: WeatherService) -> None:
     """Interactive weather lookup interface"""
     print("\n" + "="*40)
     print(" Weather Lookup ".center(40, "="))
@@ -208,7 +208,7 @@ async def main():
         print(f"API Key found: {bool(api_key)}")
         
         service = WeatherService()
-        await get_weather_interactive(service)
+        await get_weather(service)
     except WeatherServiceError as e:
         print(f"⚠️ Service initialization failed: {str(e)}")
     except Exception as e:

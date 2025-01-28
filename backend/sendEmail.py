@@ -261,7 +261,20 @@ class EmailService:
             logger.warning(f"Unknown timezone requested: {timezone}")
             return datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
 
-
+    def check_connection(self) -> bool:
+        """Check if the email service is properly configured and connected"""
+        try:
+            # Verify credentials and service initialization
+            if not self.gmail_service:
+                return False
+                
+            # Test connection by getting user profile
+            self.gmail_service.users().getProfile(userId='me').execute()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Connection check failed: {str(e)}")
+            return False
 
 
 def send_email_interactive(service: EmailService) -> None:

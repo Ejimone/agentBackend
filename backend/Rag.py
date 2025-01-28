@@ -306,7 +306,7 @@ class RAGProcessor:
             logger.error(f"Error in web search: {e}")
             return []
 
-async def main():
+async def RAG():
     try:
         print("Initializing RAG processor...")
         processor = RAGProcessor()
@@ -376,4 +376,4 @@ async def main():
         print("\nThank you for using the RAG processor!")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(RAG())
