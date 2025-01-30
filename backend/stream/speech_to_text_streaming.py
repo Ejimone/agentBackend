@@ -14,6 +14,7 @@ load_dotenv()
 class TranscriptCollector:
     def __init__(self):
         self.reset()
+        self.transcript_queue = asyncio.Queue()
 
     def reset(self):
         self.transcript_parts = []
@@ -46,7 +47,7 @@ async def get_transcript():
                 transcript_collector.add_part(sentence)
                 full_sentence = transcript_collector.get_full_transcript()
                 print(f"speaker: {full_sentence}")
-                # Reset the collector for the next sentence
+                transcript_collector.transcript_queue.put_nowait(full_sentence)
                 transcript_collector.reset()
 
         async def on_error(self, error, **kwargs):
