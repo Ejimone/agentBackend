@@ -1,8 +1,3 @@
-"""
-Production-Ready Email Service Implementation
-Handles secure email operations with Gmail API integration.
-"""
-
 import os
 import base64
 import json
@@ -36,7 +31,8 @@ class ServiceConfig:
     """Immutable service configuration parameters"""
     SCOPES: List[str] = (
         'https://www.googleapis.com/auth/gmail.send',
-        'https://www.googleapis.com/auth/gmail.compose'
+        'https://www.googleapis.com/auth/gmail.compose',
+        "https://www.googleapis.com/auth/calendar"
     )
     LOG_LEVEL: str = "INFO"
     MAX_CONTENT_LENGTH: int = 1024 * 1024  # 1MB
@@ -275,6 +271,22 @@ class EmailService:
         except Exception as e:
             logger.error(f"Connection check failed: {str(e)}")
             return False
+
+    async def handle_email_request(self, prompt: str) -> Dict[str, Any]:
+        """Handle natural language email requests"""
+        try:
+            # Use interactive email sending for now
+            send_email_interactive(self)
+            return {
+                "status": "success",
+                "message": "Email sent successfully"
+            }
+        except Exception as e:
+            logger.error(f"Error handling email request: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Failed to process email request: {str(e)}"
+            }
 
 
 def send_email_interactive(service: EmailService) -> None:

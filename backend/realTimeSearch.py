@@ -5,7 +5,7 @@ import requests
 import asyncio
 from datetime import datetime, timedelta
 import pytz
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from cachetools import TTLCache
 from langchain_community.agent_toolkits.load_tools import load_tools
 from langchain.agents import AgentType, initialize_agent
@@ -13,7 +13,7 @@ from langchain.memory import ConversationBufferMemory
 from langchain_openai import OpenAI
 from google.generativeai import GenerativeModel
 from weather import get_weather
-from ai import initialize_gemini
+from Ai import initialize_llm
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -145,7 +145,7 @@ async def real_time_search(user_prompt: str) -> Dict[str, Any]:
     """Enhanced real-time information handler with multiple fallback strategies"""
     try:
         logger.info(f"Processing query: {user_prompt}")
-        gemini_model = initialize_gemini()
+        gemini_model = initialize_llm()
         if not gemini_model:
             logger.error("Gemini initialization failed")
             return error_response("Service unavailable")
@@ -191,12 +191,12 @@ async def real_time_search(user_prompt: str) -> Dict[str, Any]:
             "weather": handle_weather,
             "time": handle_time,
             "news": handle_news,
-            "stocks": handle_stocks,
-            "sports": handle_sports,
-            "flights": handle_flights
+            # "stocks": handle_stocks,
+            # "sports": handle_sports,
+            # "flights": handle_flights
         }
 
-        handler = handlers.get(request_info["type"].lower(), handle_unknown_type)
+        handler = handlers.get(request_info["type"].lower(), fallback_search)
         return await handler(request_info)
 
     except Exception as e:

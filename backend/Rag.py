@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 import logging
 from dotenv import load_dotenv
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import quote_plus
+import time
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 # Langchain imports
 from langchain_openai import OpenAI, OpenAIEmbeddings
@@ -305,6 +310,62 @@ class RAGProcessor:
         except Exception as e:
             logger.error(f"Error in web search: {e}")
             return []
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10)
+)
+def web_search(query: str, num_results: int = 5) -> List[Dict[str, str]]:
+    """
+    Perform a web search and return parsed results.
+    
+    Args:
+        query: Search query string
+        num_results: Number of results to return (default: 5)
+        
+    Returns:
+        List of dictionaries containing search results with 'title' and 'snippet' keys
+    
+    Raises:
+        RequestException: If network request fails
+    """
+    try:
+        # Add delay to respect rate limits
+        time.sleep(1)
+        
+        # Construct search URL
+        encoded_query = quote_plus(query)
+        url = f"https://www.google.com/search?q={encoded_query}"
+        
+        # Send request with headers to mimic browser
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+
+        # Parse results
+        soup = BeautifulSoup(response.text, 'html.parser')
+        search_results = []
+        
+        # Extract search result divs
+        results = soup.find_all('div', class_='g')
+        
+        for result in results[:num_results]:
+            title_elem = result.find('h3')
+            snippet_elem = result.find('div', class_='VwiC3b')
+            
+            if title_elem and snippet_elem:
+                search_results.append({
+                    'title': title_elem.get_text(),
+                    'snippet': snippet_elem.get_text()
+                })
+                
+        return search_results
+
+    except requests.RequestException as e:
+        logger.error(f"Web search failed: {str(e)}")
+        raise
 
 async def RAG():
     try:

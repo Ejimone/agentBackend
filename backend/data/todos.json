@@ -1,0 +1,155 @@
+{
+  "e48920d8-3ffa-43f2-a859-a1e1c83873e8": {
+    "id": "e48920d8-3ffa-43f2-a859-a1e1c83873e8",
+    "title": "Buy groceries",
+    "description": "Check weather before going",
+    "due_date": "2025-01-29T17:00:00",
+    "priority": "low",
+    "status": "pending",
+    "category": "reminder",
+    "location": "New York City",
+    "weather_check": true,
+    "notifications": [
+      "email"
+    ],
+    "created_at": "2025-01-28T19:05:55.088345",
+    "last_modified": "2025-01-28T19:05:55.088345",
+    "calendar_event_id": null
+  },
+  "3412decc-c89a-4092-8a73-f6546e33f44a": {
+    "id": "3412decc-c89a-4092-8a73-f6546e33f44a",
+    "title": "Buy groceries",
+    "description": "Check weather before going",
+    "due_date": "2025-01-29T17:00:00",
+    "priority": "low",
+    "status": "pending",
+    "category": "reminder",
+    "location": "New York City",
+    "weather_check": true,
+    "notifications": [
+      "email"
+    ],
+    "created_at": "2025-01-28T19:19:31.791234",
+    "last_modified": "2025-01-28T19:19:31.791234",
+    "calendar_event_id": null
+  },
+  "2434e12d-c6d3-4dca-a1bc-c8e207508f3f": {
+    "id": "2434e12d-c6d3-4dca-a1bc-c8e207508f3f",
+    "title": "Buy Groceries",
+    "description": "Check weather before going",
+    "due_date": "2025-01-29T17:00:00",
+    "priority": "low",
+    "status": "pending",
+    "category": "task",
+    "location": "New York City",
+    "weather_check": true,
+    "notifications": [
+      "email"
+    ],
+    "created_at": "2025-01-28T19:32:44.254742",
+    "last_modified": "2025-01-28T19:32:44.254742",
+    "calendar_event_id": null
+  },
+  "3561978a-79d3-4263-9263-83b6232cd2b2": {
+    "id": "3561978a-79d3-4263-9263-83b6232cd2b2",
+    "title": "Buy groceries",
+    "description": "Check weather before going",
+    "due_date": "2025-01-29T17:00:00",
+    "priority": "low",
+    "status": "pending",
+    "category": "task",
+    "location": "New York City",
+    "weather_check": true,
+    "notifications": [
+      "email"
+    ],
+    "created_at": "2025-01-28T19:33:43.504551",
+    "last_modified": "2025-01-28T19:33:43.504551",
+    "calendar_event_id": null
+  },
+  "d659bd1d-157e-4b2f-9620-579f6121a78d": {
+    "id": "d659bd1d-157e-4b2f-9620-579f6121a78d",
+    "title": "Create a user interface for the web-dev team",
+    "description": "Create a user interface for the web-dev team",
+    "due_date": "2025-01-28T00:00:00",
+    "priority": "medium",
+    "status": "pending",
+    "category": "task",
+    "location": "N/A",
+    "weather_check": false,
+    "notifications": [
+      "email"
+    ],
+    "created_at": "2025-01-28T19:40:41.610302",
+    "last_modified": "2025-01-28T19:40:41.610302",
+    "calendar_event_id": null
+  },
+  "9b532463-f7d8-4160-910b-4350f4d5d4d6": {
+    "id": "9b532463-f7d8-4160-910b-4350f4d5d4d6",
+    "title": "Make Biryani",
+    "description": null,
+    "due_date": null,
+    "priority": null,
+    "status": "pending",
+    "category": "task",
+    "location": null,
+    "weather_check": false,
+    "notifications": [
+      "email"
+    ],
+    "created_at": "2025-01-28T19:46:36.012706",
+    "last_modified": "2025-01-28T19:46:36.012706",
+    "calendar_event_id": null
+  },
+  "297d7181-3208-424f-aa0f-8f8ae83580cf": {
+    "id": "297d7181-3208-424f-aa0f-8f8ae83580cf",
+    "title": "Team Meeting",
+    "description": null,
+    "due_date": "2025-01-29T09:00:00",
+    "priority": "medium",
+    "status": "pending",
+    "category": "meeting",
+    "location": null,
+    "weather_check": false,
+    "notifications": [
+      "email"
+    ],
+    "created_at": "2025-01-28T19:50:09.617704",
+    "last_modified": "2025-01-28T19:50:09.617704",
+    "calendar_event_id": null
+  },
+  "a23d926a-8407-44e0-85d2-30f2cc6609bd": {
+    "id": "a23d926a-8407-44e0-85d2-30f2cc6609bd",
+    "title": "Gym",
+    "description": null,
+    "due_date": "2025-01-28T17:00:00",
+    "priority": "low",
+    "status": "pending",
+    "category": "task",
+    "location": null,
+    "weather_check": false,
+    "notifications": [
+      "email"
+    ],
+    "created_at": "2025-01-28T19:58:11.409679",
+    "last_modified": "2025-01-28T19:58:11.409679",
+    "calendar_event_id": null
+  },
+  "ad6cff15-4c59-4d46-ae86-a3a33653c848": {
+    "id": "ad6cff15-4c59-4d46-ae86-a3a33653c848",
+    "title": "Biryani Todo List",
+    "description": null,
+    "due_date": null,
+    "priority": null,
+    "status": "pending",
+    "category": "task",
+    "location": null,
+    "weather_check": false,
+    "notifications": [
+      "email"
+    ],
+    "created_at": "2025-01-28T20:01:49.518962",
+    "last_modified": "2025-01-28T20:01:49.518962",
+    "calendar_event_id": null
+  }
+}

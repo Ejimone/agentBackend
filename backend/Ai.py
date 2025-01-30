@@ -22,6 +22,8 @@ logging.basicConfig(level=logging.INFO)
 # Load environment variables
 load_dotenv()
 
+
+
 # Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
