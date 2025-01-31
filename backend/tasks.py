@@ -34,7 +34,6 @@ class TaskRouter:
     async def analyze_prompt_and_route_task(self, user_prompt: str) -> Dict[str, Any]:
         """Analyzes user prompt and routes to appropriate function"""
         try:
-            # Use Gemini for classification
             classification_prompt = """
             Analyze this request and classify it. Return JSON structure:
             For real-time info (weather, time, current events):
