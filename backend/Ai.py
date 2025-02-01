@@ -9,7 +9,7 @@ from langchain_openai import OpenAI
 from dotenv import load_dotenv
 import google.generativeai as genai
 import logging
-from sendEmail import EmailService, EmailServiceError
+from sendEmail import AIService as EmailService, test_service as send_email_interactive
 from datetime import datetime
 import uuid
 import json

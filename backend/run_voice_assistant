@@ -9,12 +9,9 @@ from voice_assistant.utils import delete_file
 from voice_assistant.config import Config
 from voice_assistant.api_key_manager import get_transcription_api_key, get_response_api_key, get_tts_api_key
 import os
-from weather import WeatherService, WeatherServiceError
-from Rag import RAGProcessor
-from weather import get_weather
-from sendEmail import send_email_interactive as send_email
-from todo import interactive_todo as todo
-from realTimeSearch import real_time_search
+import weather
+
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

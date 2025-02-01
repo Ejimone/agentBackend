@@ -51,7 +51,7 @@ def text_to_speech(model: str, api_key:str, text:str, output_file_path:str, loca
             client = ElevenLabs(api_key=api_key)
             audio = client.generate(
                 text=text, 
-                voice="Paul J.", 
+                voice="River", 
                 output_format="mp3_22050_32", 
                 model="eleven_turbo_v2"
             )
@@ -63,10 +63,10 @@ def text_to_speech(model: str, api_key:str, text:str, output_file_path:str, loca
             voice_id = "f114a467-c40a-4db8-964d-aaba89cd08fa"#"a0e99841-438c-4a64-b679-ae501e7d6091"
             voice = client.voices.get(id=voice_id)
 
-            # You can check out our models at https://docs.cartesia.ai/getting-started/available-models
+            # https://docs.cartesia.ai/getting-started/available-models
             model_id = "sonic-english"
 
-            # You can find the supported `output_format`s at https://docs.cartesia.ai/api-reference/endpoints/stream-speech-server-sent-events
+            # https://docs.cartesia.ai/api-reference/endpoints/stream-speech-server-sent-events
             output_format = {
                 "container": "raw",
                 "encoding": "pcm_f32le",

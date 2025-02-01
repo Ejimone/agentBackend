@@ -8,12 +8,11 @@ from Rag import RAGProcessor  # Changed from RAG to RAGProcessor
 from realTimeSearch import real_time_search
 from weather import get_weather
 from todo import TodoManager 
-from sendEmail import EmailService, send_email_interactive
+from sendEmail import AIService as EmailService, test_service as send_email_interactive
 from webScrapeAndProcess import web_search
 # from Audio import speak
 import os
-import google.generativeai as genai
-from openai import OpenAI
+from response_generation import generate_response
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,9 +26,9 @@ class TaskRouter:
         self.ai_assistant = AIAssistant()  # Added AI Assistant
         
         # Initialize AI models
-        self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-        self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+        # self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        # genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        # self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
         
     async def analyze_prompt_and_route_task(self, user_prompt: str) -> Dict[str, Any]:
         """Analyzes user prompt and routes to appropriate function"""

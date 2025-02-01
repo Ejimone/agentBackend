@@ -11,8 +11,7 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 import google.generativeai as genai
 from sendEmail import (
-    EmailService, 
-    EmailServiceError, 
+    AIService as EmailService, 
     PathConfig, 
     ServiceConfig
 )
@@ -219,7 +218,7 @@ class TodoManager:
                 try:
                     email_message = self.email_service.construct_message(**message)
                     await self.email_service.send_email(email_message)
-                except EmailServiceError as e:
+                except Exception as e:
                     logger.error(f"Failed to send email notification: {e}")
 
     async def process_natural_language_request(self, request: str) -> Dict[str, Any]:

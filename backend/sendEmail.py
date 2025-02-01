@@ -1,98 +1,89 @@
 import os
-import base64
 import json
-import logging
+import base64
+import pickle
 import logging.config
 import re
-from pathlib import Path
+from typing import Dict, Any, List, Optional, Tuple, Union
 from datetime import datetime
+from pathlib import Path
 from email.mime.text import MIMEText
-from typing import Dict, Any, List, Optional
 from functools import lru_cache
 from dataclasses import dataclass
 
 # Third-party imports
 import pytz
+import openai
+import google.generativeai as genai
+from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient import errors as google_errors
+from langchain_openai import OpenAI
+from langchain.memory import ConversationBufferWindowMemory
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-# Constants
-MAX_RETRIES = 3
-TOKEN_EXPIRY_BUFFER = 300  # 5 minutes buffer for token expiration
-EMAIL_REGEX = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
-
 # Configuration
-@dataclass(frozen=True)
+@dataclass
 class ServiceConfig:
-    """Immutable service configuration parameters"""
-    SCOPES: List[str] = (
-        'https://www.googleapis.com/auth/gmail.send',
-        'https://www.googleapis.com/auth/gmail.compose',
-        "https://www.googleapis.com/auth/calendar"
-    )
+    """Service configuration parameters"""
+    SCOPES: List[str] = None
     LOG_LEVEL: str = "INFO"
-    MAX_CONTENT_LENGTH: int = 1024 * 1024  # 1MB
-    TOKEN_REFRESH_THRESHOLD: int = TOKEN_EXPIRY_BUFFER
+    MAX_RETRIES: int = 3
+    CACHE_TTL: int = 3600
+    MAX_CONTENT_LENGTH: int = 1000
 
-@dataclass(frozen=True)
+    def __post_init__(self):
+        self.SCOPES = [
+            'https://www.googleapis.com/auth/gmail.send',
+            'https://www.googleapis.com/auth/gmail.compose',
+            'https://www.googleapis.com/auth/gmail.modify',
+            'https://www.googleapis.com/auth/calendar',
+            'https://www.googleapis.com/auth/calendar.events',
+            # 'https://www.googleapis.com/auth/cloud-platform',
+            # 'https://www.googleapis.com/auth/cloud-translation',
+            # 'https://www.googleapis.com/auth/cloud-speech-to-text',
+            # 'https://www.googleapis.com/auth/cloud-text-to-speech',
+        ]
+
 class PathConfig:
-    """Immutable path configuration"""
-    BASE_DIR: Path = Path(__file__).resolve().parent
-    CREDENTIALS_PATH: Path = BASE_DIR / 'credentials.json'
-    TOKEN_PATH: Path = BASE_DIR / 'token.json'
-    LOG_CONFIG_PATH: Path = BASE_DIR / 'logging.json'
-
-class EmailServiceError(Exception):
-    """Base exception for email service errors"""
-    pass
-
-class EmailValidationError(EmailServiceError):
-    """Exception raised for email validation errors"""
-    pass
+    """Path configuration"""
+    BASE_DIR = Path(__file__).parent.parent.parent
+    CREDENTIALS_PATH = BASE_DIR / './credentials.json'
+    TOKEN_PATH = BASE_DIR / 'token.json'
+    LOG_CONFIG_PATH = BASE_DIR / 'logging.json'
 
 # Logging configuration
 def setup_logging() -> None:
-    """Configure structured logging with rotation"""
+    """Configure logging with rotation and proper formatting"""
     logging.config.dictConfig({
         'version': 1,
         'disable_existing_loggers': False,
         'formatters': {
-            'json': {
-                '()': 'pythonjsonlogger.jsonlogger.JsonFormatter',
-                'format': '''
-                    {
-                        "timestamp": "%(asctime)s",
-                        "level": "%(levelname)s",
-                        "name": "%(name)s",
-                        "message": "%(message)s",
-                        "module": "%(module)s",
-                        "function": "%(funcName)s"
-                    }
-                '''
-            }
+            'standard': {
+                'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+            },
         },
         'handlers': {
-            'console': {
+            'default': {
+                'level': 'INFO',
+                'formatter': 'standard',
                 'class': 'logging.StreamHandler',
-                'formatter': 'json',
-                'level': 'INFO'
             },
             'file': {
+                'level': 'INFO',
+                'formatter': 'standard',
                 'class': 'logging.handlers.RotatingFileHandler',
-                'filename': 'email_service.log',
-                'maxBytes': 10 * 1024 * 1024,  # 10MB
+                'filename': 'app.log',
+                'maxBytes': 10485760,  # 10MB
                 'backupCount': 5,
-                'formatter': 'json',
-                'level': 'INFO'
             }
         },
         'loggers': {
-            '': {  # Root logger
-                'handlers': ['console', 'file'],
+            '': {  # root logger
+                'handlers': ['default', 'file'],
                 'level': 'INFO',
                 'propagate': True
             }
@@ -101,289 +92,276 @@ def setup_logging() -> None:
 
 logger = logging.getLogger(__name__)
 
-class EmailService:
-    """Secure email service with Gmail API integration"""
+class AIService:
+    """Main service class for AI operations"""
     
-    def __init__(self, config: ServiceConfig = ServiceConfig()):
-        self.config = config
-        self._validate_environment()
-        self.gmail_service = self._initialize_gmail_service()
+    def __init__(self, config: ServiceConfig = None):
+        self.config = config or ServiceConfig()
+        self._setup_environment()
+        self.gmail_service = None
+        self.openai_llm = None
+        self.gemini_model = None
+        self._initialize_services()
 
-    def _validate_environment(self) -> None:
-        """Validate required environment setup"""
-        if not PathConfig.CREDENTIALS_PATH.exists():
-            raise EmailServiceError("Missing credentials file")
-        
-        if not PathConfig.CREDENTIALS_PATH.stat().st_size > 0:
-            raise EmailServiceError("Empty credentials file")
+    def _setup_environment(self) -> None:
+        """Setup environment variables and configurations"""
+        load_dotenv()
+        required_vars = ['OPENAI_API_KEY', 'SERPAPI_API_KEY', 'GEMINI_API_KEY']
+        missing_vars = [var for var in required_vars if not os.getenv(var)]
+        if missing_vars:
+            raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
-    @retry(
-        stop=stop_after_attempt(MAX_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        reraise=True
-    )
-    def _initialize_gmail_service(self) -> Any:
-        """Initialize and return authenticated Gmail service"""
+    def _initialize_services(self) -> None:
+        """Initialize all required services"""
+        self._initialize_ai_models()
+        self._initialize_gmail_service()
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    def _initialize_ai_models(self) -> None:
+        """Initialize AI models with Gemini first, fallback to OpenAI"""
         try:
-            creds = self._get_valid_credentials()
-            return build('gmail', 'v1', credentials=creds, cache_discovery=False)
+            # Try Gemini first
+            genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+            self.gemini_model = genai.GenerativeModel('gemini-pro')
+            logger.info("Initialized Gemini model successfully")
         except Exception as e:
-            logger.error(f"Gmail service initialization failed: {str(e)}")
-            raise EmailServiceError("Failed to initialize Gmail service") from e
+            logger.warning(f"Failed to initialize Gemini: {e}, falling back to OpenAI")
+            try:
+                self.openai_llm = OpenAI(temperature=0.7, openai_api_key=os.getenv("OPENAI_API_KEY"))
+                logger.info("Initialized OpenAI model successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize both models: {e}")
+                raise
 
-    def _get_valid_credentials(self) -> Credentials:
-        """Obtain valid credentials with secure token management"""
-        creds = self._load_existing_credentials()
-        
+    def _initialize_gmail_service(self) -> None:
+        """Initialize Gmail service with proper error handling"""
+        try:
+            creds = self._get_gmail_credentials()
+            self.gmail_service = build('gmail', 'v1', credentials=creds)
+        except Exception as e:
+            logger.error(f"Failed to initialize Gmail service: {e}")
+            self.gmail_service = None
+
+    def _get_gmail_credentials(self) -> Credentials:
+        """Get Gmail credentials with proper token management"""
+        creds = None
+        if PathConfig.TOKEN_PATH.exists():
+            with open(PathConfig.TOKEN_PATH, 'rb') as token:
+                creds = pickle.load(token)
+
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                self._refresh_credentials(creds)
+                creds.refresh(Request())
             else:
-                creds = self._create_new_credentials()
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    str(PathConfig.CREDENTIALS_PATH),
+                    self.config.SCOPES
+                )
+                creds = flow.run_local_server(port=0)
             
-            self._store_credentials(creds)
-        
+            with open(PathConfig.TOKEN_PATH, 'wb') as token:
+                pickle.dump(creds, token)
+
         return creds
 
-    def _load_existing_credentials(self) -> Optional[Credentials]:
-        """Load existing credentials from secure storage"""
+    async def get_current_time(self, location: str) -> Dict[str, Any]:
+        """Get current time for a location with error handling"""
         try:
-            if PathConfig.TOKEN_PATH.exists():
-                with PathConfig.TOKEN_PATH.open('r') as token_file:
-                    return Credentials.from_authorized_user_info(json.load(token_file))
+            if location.lower() in ('us', 'usa'):
+                return self._get_all_us_times()
+            return self._get_specific_timezone(location)
         except Exception as e:
-            logger.warning(f"Failed to load credentials: {str(e)}")
-        return None
+            logger.error(f"Error getting time for {location}: {e}")
+            return {"status": "error", "message": str(e)}
 
-    def _refresh_credentials(self, creds: Credentials) -> None:
-        """Refresh expired credentials"""
-        try:
-            creds.refresh(Request())
-        except Exception as e:
-            logger.error(f"Credentials refresh failed: {str(e)}")
-            raise EmailServiceError("Credentials refresh failed") from e
+    def _create_email_message(self, to: str, subject: str, body: str) -> MIMEText:
+        """Create email message object"""
+        message = MIMEText(body)
+        message['to'] = to
+        message['subject'] = subject
+        return {'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}
 
-    def _create_new_credentials(self) -> Credentials:
-        """Create new credentials through OAuth flow"""
-        try:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                str(PathConfig.CREDENTIALS_PATH),
-                scopes=self.config.SCOPES
-            )
-            return flow.run_local_server(port=0)
-        except Exception as e:
-            logger.error(f"OAuth flow failed: {str(e)}")
-            raise EmailServiceError("OAuth authentication failed") from e
+    def _send_email_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        """Send email message using Gmail API"""
+        return self.gmail_service.users().messages().send(userId='me', body=message).execute()
 
-    def _store_credentials(self, creds: Credentials) -> None:
-        """Securely store credentials"""
-        try:
-            token_data = {
-                'token': creds.token,
-                'refresh_token': creds.refresh_token,
-                'token_uri': creds.token_uri,
-                'client_id': creds.client_id,
-                'client_secret': creds.client_secret,
-                'scopes': creds.scopes
-            }
-            with PathConfig.TOKEN_PATH.open('w') as token_file:
-                json.dump(token_data, token_file)
-        except Exception as e:
-            logger.error(f"Failed to store credentials: {str(e)}")
-            raise EmailServiceError("Credential storage failed") from e
-
-    def _validate_email_components(self, to: str, subject: str, body: str) -> None:
-        """Validate email components before sending"""
-        if not re.match(EMAIL_REGEX, to):
-            raise EmailValidationError(f"Invalid email address: {to}")
+    @lru_cache(maxsize=100)
+    def _get_all_us_times(self) -> Dict[str, Any]:
+        """Get all US timezone times with caching"""
+        us_timezones = {
+            'eastern': 'US/Eastern',
+            'central': 'US/Central',
+            'mountain': 'US/Mountain',
+            'pacific': 'US/Pacific',
+            'alaska': 'US/Alaska',
+            'hawaii': 'US/Hawaii'
+        }
         
-        if len(subject) > 150:
-            raise EmailValidationError("Subject line too long")
-        
-        if len(body) > self.config.MAX_CONTENT_LENGTH:
-            raise EmailValidationError("Email body exceeds maximum allowed size")
-
-    def construct_message(self, to: str, subject: str, body: str) -> Dict[str, Any]:
-        """Construct MIME email message with validation"""
-        self._validate_email_components(to, subject, body)
-        
-        try:
-            message = MIMEText(body)
-            message['to'] = to
-            message['subject'] = subject
-            return {
-                'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()
-            }
-        except Exception as e:
-            logger.error(f"Message construction failed: {str(e)}")
-            raise EmailServiceError("Failed to construct email message") from e
-
-    @retry(
-        stop=stop_after_attempt(MAX_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        reraise=True
-    )
-    def send_email(self, message: Dict[str, Any]) -> Dict[str, Any]:
-        """Send email through Gmail API with retry logic"""
-        try:
-            result = self.gmail_service.users().messages().send(
-                userId='me',
-                body=message
-            ).execute()
-            
-            logger.info(
-                "Email sent successfully",
-                extra={'message_id': result.get('id'), 'service': 'gmail'}
-            )
-            return {
-                'status': 'success',
-                'message_id': result.get('id'),
-                'service': 'gmail'
-            }
-        except google_errors.HttpError as e:
-            logger.error(f"Gmail API error: {str(e)}")
-            raise EmailServiceError("Gmail API communication failed") from e
-        except Exception as e:
-            logger.error(f"Unexpected error sending email: {str(e)}")
-            raise EmailServiceError("Email sending failed") from e
-
-    @lru_cache(maxsize=128)
-    def get_current_time(self, timezone: str = 'UTC') -> str:
-        """Get current time for a given timezone with caching"""
-        try:
+        current_times = []
+        for zone_name, timezone in us_timezones.items():
             tz = pytz.timezone(timezone)
-            return datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S %Z')
-        except pytz.UnknownTimeZoneError:
-            logger.warning(f"Unknown timezone requested: {timezone}")
-            return datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+            current_time = datetime.now(tz)
+            current_times.append(f"🕐 {zone_name.title()}: {current_time.strftime('%I:%M %p')}")
+        
+        return {
+            "status": "success",
+            "data": "\n".join(current_times),
+            "type": "time"
+        }
 
-    def check_connection(self) -> bool:
-        """Check if the email service is properly configured and connected"""
-        try:
-            # Verify credentials and service initialization
-            if not self.gmail_service:
-                return False
-                
-            # Test connection by getting user profile
-            self.gmail_service.users().getProfile(userId='me').execute()
-            return True
-            
-        except Exception as e:
-            logger.error(f"Connection check failed: {str(e)}")
-            return False
+    async def send_email(self, to: str, subject: str, body: str) -> Dict[str, Any]:
+        """Send email with comprehensive error handling and logging"""
+        if not self.gmail_service:
+            return {"status": "error", "message": "Gmail service not initialized"}
 
-    async def handle_email_request(self, prompt: str) -> Dict[str, Any]:
-        """Handle natural language email requests"""
         try:
-            # Use interactive email sending for now
-            send_email_interactive(self)
+            message = self._create_email_message(to, subject, body)
+            sent_message = self._send_email_message(message)
+            logger.info(f"Email sent successfully to {to}")
             return {
                 "status": "success",
-                "message": "Email sent successfully"
+                "message_id": sent_message['id'],
+                "details": {"to": to, "subject": subject}
             }
+        except google_errors.HttpError as e:
+            logger.error(f"Gmail API error: {e}")
+            return {"status": "error", "message": str(e)}
         except Exception as e:
-            logger.error(f"Error handling email request: {str(e)}")
-            return {
-                "status": "error",
-                "message": f"Failed to process email request: {str(e)}"
-            }
+            logger.error(f"Unexpected error sending email: {e}")
+            return {"status": "error", "message": str(e)}
 
+    @staticmethod
+    def clean_text(text: str) -> str:
+        """Clean text with improved handling"""
+        if not text:
+            return ""
+        text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r'\n+', '\n', text)
+        return text.strip()
 
-def send_email_interactive(service: EmailService) -> None:
-    """
-    Interactive email sending function with validation
-    """
-    print("\n" + "="*40)
-    print("Email Composition Interface".center(40))
-    print("="*40 + "\n")
-
-    # Email address validation
-    while True:
-        recipient = input("Enter recipient's email address: ").strip()
-        if re.match(EMAIL_REGEX, recipient):
-            break
-        print("❌ Invalid email format. Please try again.")
-
-    # Subject validation
-    while True:
-        subject = input("Enter email subject (max 150 chars): ").strip()
-        if len(subject) > 150:
-            print("❌ Subject exceeds 150 character limit")
-        elif subject:
-            break
-        else:
-            print("❌ Subject cannot be empty")
-
-    # Body composition with multi-line support
-    print("\nCompose your email body (type 'END' on a new line to finish):")
-    body_lines = []
-    while True:
+    async def generate_text(self, prompt: str) -> str:
+        """Generate text using available model with fallback"""
         try:
-            line = input()
-            if line.strip().upper() == 'END':
-                break
-            body_lines.append(line)
-        except EOFError:
-            break
+            if self.gemini_model:
+                response = self.gemini_model.generate_content(prompt)
+                return response.text
+        except Exception as e:
+            logger.warning(f"Gemini generation failed: {e}, falling back to OpenAI")
+            
+        try:
+            if self.openai_llm:
+                return self.openai_llm(prompt)
+        except Exception as e:
+            logger.error(f"Text generation failed: {e}")
+            raise
 
-    body = '\n'.join(body_lines).strip()
-    if not body:
-        print("❌ Email body cannot be empty")
-        return
-
-    # Final confirmation
-    print("\n" + "-"*40)
-    print(f"To: {recipient}")
-    print(f"Subject: {subject}")
-    print("\nBody Preview:")
-    print(body[:500] + ("..." if len(body) > 500 else ""))
-    print("-"*40 + "\n")
-
-    confirmation = input("Send this email? (y/N): ").strip().lower()
-    if confirmation != 'y':
-        print("🚫 Email cancelled")
-        return
-
+async def test_service(service: AIService) -> None:
+    """Test all service functionalities"""
     try:
-        message = service.construct_message(
-            to=recipient,
-            subject=subject,
-            body=body
-        )
-        result = service.send_email(message)
-        print(f"\n✅ Email sent successfully! Message ID: {result['message_id']}")
-    except EmailValidationError as e:
-        print(f"\n❌ Validation error: {str(e)}")
-    except EmailServiceError as e:
-        print(f"\n❌ Service error: {str(e)}")
+        # Test time functionality
+        # print("\n=== Testing Time Service ===")
+        # us_time = await service.get_current_time("US")
+        # print(f"US Times:\n{us_time['data']}")
+        
+        # Test text cleaning
+        print("\n=== Testing Text Cleaning ===")
+        test_text = """This is a   test
+        with multiple    spaces
+        and newlines"""
+        cleaned = service.clean_text(test_text)
+        print(f"Cleaned text: {cleaned}")
+        
+        # Enhanced email functionality test
+        print("\n=== Email Service Test ===")
+        send_test_email = input("Would you like to test email functionality? (y/n): ").lower()
+        if send_test_email == 'y':
+            # Gather email details
+            to_email = input("Enter receiver's email address: ").strip()
+            while not re.match(r"[^@]+@[^@]+\.[^@]+", to_email):
+                print("Invalid email format. Please try again.")
+                to_email = input("Enter receiver's email address: ").strip()
+            
+            email_title = input("Enter email title/subject: ").strip()
+            while not email_title:
+                print("Title cannot be empty. Please try again.")
+                email_title = input("Enter email title/subject: ").strip()
+            
+            sender_name = input("Enter your name: ").strip()
+            while not sender_name:
+                print("Name cannot be empty. Please try again.")
+                sender_name = input("Enter your name: ").strip()
+            receiver_name = input("Enter the receiver's name: ").strip()
+            while not receiver_name:
+                print("Receiver's name cannot be empty. Please try again.")
+                receiver_name = input("Enter the receiver's name: ").strip()
+
+            # Get user's request for email content
+            user_request = input("Enter your request for the email: ").strip()
+            while not user_request:
+                print("Request cannot be empty. Please try again.")
+                user_request = input("Enter your request for the email: ").strip()
+
+            # Generate email title if not provided
+            if not email_title:
+                print("\nGenerating email title...")
+                try:
+                    email_title = await service.generate_text(
+                        f"Generate a concise email title based on: {user_request}"
+                    )
+                    print(f"Generated title: {email_title}")
+                except Exception as e:
+                    print(f"Error generating title: {str(e)}")
+                    email_title = "Automated Email from AI Service"
+
+            # Generate email body
+            print("\nGenerating email body...")
+            try:
+                email_body = await service.generate_text(
+                    f"Generate an email body based on the following request:\n\n"
+                    f"{user_request}\n\nSender: {sender_name}\nReceiver: {receiver_name}"
+                )
+                print("Generated body:")
+                print(email_body)
+            except Exception as e:
+                print(f"Error generating email body: {str(e)}")
+                email_body = (f"Dear {receiver_name},\n\n"
+                             f"This is an automated email based on your request: "
+                             f"{user_request}\n\nBest regards,\n{sender_name}")
+
+            print("\nSending test email...")
+            try:
+                result = await service.send_email(to_email, email_title, email_body)
+                if result.get("status") == "success":
+                    print(f"\n✅ Email sent successfully!")
+                    print(f"Delivered to: {to_email}")
+                    print(f"Subject: {email_title}")
+                else:
+                    print(f"\n❌ Failed to send email: {result.get('message')}")
+            except Exception as e:
+                print(f"\n❌ Error sending email: {str(e)}")
+        
+        print("\n=== Test Suite Completed ===")
+
     except Exception as e:
-        print(f"\n❌ Unexpected error: {str(e)}")
-        logger.error(f"Unexpected error in interactive send: {str(e)}")
-
-
-
-
-
+        print(f"❌ Error during testing: {str(e)}")
+        logger.error(f"Test execution failed: {e}")
 
 if __name__ == "__main__":
     try:
         setup_logging()
-        service = EmailService()
+        logger.info("Starting AI Service test suite...")
+        service = AIService()
         
-        while True:
-            send_email_interactive(service)
-            if input("\nSend another email? (y/N): ").strip().lower() != 'y':
-                break
-                
+        import asyncio
+        if os.name == 'nt':  # Windows
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        asyncio.run(test_service(service))
+        
     except Exception as e:
-        logger.error(f"Critical failure: {str(e)}")
-        print(f"💥 Critical error: {str(e)}")
-
-
-
-
-
-
+        logger.error(f"Service initialization failed: {e}")
+        print(f"❌ Error: {str(e)}")
+    finally:
+        logger.info("Test suite execution completed")
 
 
 

@@ -18,12 +18,12 @@ class Config:
         GROQ_API_KEY (str): API key for Groq services.
         DEEPGRAM_API_KEY (str): API key for Deepgram services.
         ELEVENLABS_API_KEY (str): API key for ElevenLabs services.
-        LOCAL_MODEL_PATH (str): Path to the local model.
+
     """
-    # Model selection
-    TRANSCRIPTION_MODEL = 'deepgram'  # I am thinking og usinf theses oga eme ka everthing diri anyi easy for maintenance and values: openai, groq, deepgram, fastwhisperapi
-    RESPONSE_MODEL = 'openai'  # I am thinking og usinf theses oga eme ka everthing diri anyi easy for maintenance and values: openai, groq, ollama
-    TTS_MODEL = 'openai'  # I am thinking og usinf theses oga eme ka everthing diri anyi easy for maintenance and values: openai, deepgram, elevenlabs, melotts, cartesia
+    # Model selection 
+    TRANSCRIPTION_MODEL = 'deepgram'  # I am thinking og using theses oga eme ka everthing diri anyi easy for maintenance and values: openai, groq, deepgram, fastwhisperapi
+    RESPONSE_MODEL = 'groq'  # I am thinking og using theses oga eme ka everthing diri anyi easy for maintenance and values: openai, groq, ollama
+    TTS_MODEL = 'elevenlabs'  # I am thinking og using theses oga eme ka everthing diri anyi easy for maintenance and values: openai, deepgram, elevenlabs, melotts, cartesia
 
     # LLM Selection
     OLLAMA_LLM="llama3:8b"
