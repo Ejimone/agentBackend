@@ -15,8 +15,11 @@ from sendEmail import (
     PathConfig, 
     ServiceConfig
 )
+# Add to imports at top of file
+from google.auth.transport.requests import Request
 from weather import WeatherService
 from dotenv import load_dotenv
+from google_auth_oauthlib.flow import InstalledAppFlow
 
 # Load environment variables
 load_dotenv()
@@ -70,23 +73,48 @@ class TodoManager:
     def _initialize_services(self):
         """Initialize all required services"""
         try:
-            # Initialize Calendar Service
-            creds = self.email_service._get_valid_credentials()
-            self.calendar_service = build(
-                'calendar', 'v3', 
-                credentials=creds, 
-                cache_discovery=False  # Disable cache warning
-            )
+            SCOPES = [
+                'https://www.googleapis.com/auth/calendar',
+                'https://www.googleapis.com/auth/calendar.events'
+            ]
+            
+            creds = None
+            # Try to load existing token
+            if PathConfig.TOKEN_PATH.exists():
+                try:
+                    with open(PathConfig.TOKEN_PATH, 'r', encoding='utf-8') as token:
+                        token_data = json.load(token)
+                        creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+                except (UnicodeDecodeError, json.JSONDecodeError) as e:
+                    logger.warning(f"Error reading token file: {e}")
+                    # Delete corrupted token file
+                    PathConfig.TOKEN_PATH.unlink(missing_ok=True)
+
+            # If no valid credentials available, run the OAuth flow
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                else:
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        str(PathConfig.CREDENTIALS_PATH), SCOPES)
+                    creds = flow.run_local_server(port=0)
+                
+                # Save the credentials for the next run
+                with open(PathConfig.TOKEN_PATH, 'w', encoding='utf-8') as token:
+                    token.write(creds.to_json())
+
+            # Build the service
+            self.calendar_service = build('calendar', 'v3', credentials=creds)
             
             # Initialize Gemini AI
             genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
             self.ai_service = genai.GenerativeModel('gemini-pro')
             
             logger.info("Services initialized successfully")
+            
         except Exception as e:
             logger.error(f"Service initialization error: {e}")
             raise
-
     async def cleanup(self):
         """Cleanup resources"""
         try:

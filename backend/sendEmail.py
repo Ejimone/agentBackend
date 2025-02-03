@@ -50,9 +50,9 @@ class ServiceConfig:
 
 class PathConfig:
     """Path configuration"""
-    BASE_DIR = Path(__file__).parent.parent.parent
-    CREDENTIALS_PATH = BASE_DIR / './credentials.json'
-    TOKEN_PATH = BASE_DIR / 'token.json'
+    BASE_DIR = Path(__file__).parent
+    CREDENTIALS_PATH = BASE_DIR / './credentials.json'  # Ensure this path is correct
+    TOKEN_PATH = BASE_DIR / './token.json'  # Ensure this path is correct
     LOG_CONFIG_PATH = BASE_DIR / 'logging.json'
 
 # Logging configuration
@@ -135,32 +135,54 @@ class AIService:
 
     def _initialize_gmail_service(self) -> None:
         """Initialize Gmail service with proper error handling"""
+        logger.info("Initializing Gmail service...")  # Added log
         try:
+            logger.info("Getting Gmail credentials...")  # Added log
             creds = self._get_gmail_credentials()
+            logger.info("Gmail credentials obtained.")  # Added log
             self.gmail_service = build('gmail', 'v1', credentials=creds)
+            logger.info("Initialized Gmail service successfully")
         except Exception as e:
             logger.error(f"Failed to initialize Gmail service: {e}")
             self.gmail_service = None
+        logger.info(f"Gmail service initialized: {self.gmail_service is not None}") # Added log to check if service is initialized
 
     def _get_gmail_credentials(self) -> Credentials:
         """Get Gmail credentials with proper token management"""
         creds = None
+        logger.info(f"Checking if token file exists at: {PathConfig.TOKEN_PATH}") # Log token path
         if PathConfig.TOKEN_PATH.exists():
-            with open(PathConfig.TOKEN_PATH, 'rb') as token:
-                creds = pickle.load(token)
+            logger.info("Token file exists. Attempting to load credentials from token file.") # Log if token file exists
+            try:
+                with open(PathConfig.TOKEN_PATH, 'rb') as token:
+                    creds = pickle.load(token)
+                logger.info("Credentials loaded from token file.") # Log if credentials loaded successfully
+            except Exception as e:
+                logger.error(f"Error loading credentials from token file: {e}") # Log error if loading fails
+                creds = None # Ensure creds is None if loading fails
+        else:
+            logger.info("Token file does not exist.") # Log if token file doesn't exist
 
         if not creds or not creds.valid:
+            logger.info("Credentials not found or invalid. Attempting to refresh or obtain new credentials.") # Log if creds are invalid or not found
             if creds and creds.expired and creds.refresh_token:
+                logger.info("Credentials expired and refresh token exists. Refreshing credentials.") # Log if refreshing credentials
                 creds.refresh(Request())
+                logger.info("Credentials refreshed.") # Log if credentials refreshed
             else:
+                logger.info("No valid credentials or refresh token. Running installed app flow to obtain new credentials.") # Log if obtaining new credentials
                 flow = InstalledAppFlow.from_client_secrets_file(
                     str(PathConfig.CREDENTIALS_PATH),
                     self.config.SCOPES
                 )
                 creds = flow.run_local_server(port=0)
+                logger.info("New credentials obtained.") # Log if new credentials obtained
             
             with open(PathConfig.TOKEN_PATH, 'wb') as token:
                 pickle.dump(creds, token)
+                logger.info("Credentials saved to token file.") # Log if credentials saved to token file
+        else:
+            logger.info("Valid credentials found.") # Log if valid credentials found
 
         return creds
 
@@ -181,7 +203,7 @@ class AIService:
         message['subject'] = subject
         return {'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}
 
-    def _send_email_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _send_email_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Send email message using Gmail API"""
         return self.gmail_service.users().messages().send(userId='me', body=message).execute()
 
@@ -216,7 +238,7 @@ class AIService:
 
         try:
             message = self._create_email_message(to, subject, body)
-            sent_message = self._send_email_message(message)
+            sent_message = await self._send_email_message(message)  # Fixed: Added await for async call
             logger.info(f"Email sent successfully to {to}")
             return {
                 "status": "success",
@@ -346,7 +368,7 @@ async def test_service(service: AIService) -> None:
         print(f"❌ Error during testing: {str(e)}")
         logger.error(f"Test execution failed: {e}")
 
-if __name__ == "__main__":
+def sendemail():
     try:
         setup_logging()
         logger.info("Starting AI Service test suite...")
@@ -363,38 +385,5 @@ if __name__ == "__main__":
     finally:
         logger.info("Test suite execution completed")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Example usage
-
-# if __name__ == "__main__":
-#     try:
-#         setup_logging()
-#         service = EmailService()
-        
-#         # Example email send
-#         message = service.construct_message(
-#             to="recipient@example.com",
-#             subject="Service Test",
-#             body="This is a test email from the production email service"
-#         )
-#         result = service.send_email(message)
-#         print(f"Email sent successfully: {result['message_id']}")
-        
-#     except EmailServiceError as e:
-#         logger.error(f"Email service error: {str(e)}")
-#         print(f"Service error: {str(e)}")
-#     except Exception as e:
-#         logger.error(f"Unexpected error: {str(e)}")
-#         print(f"Unexpected error: {str(e)}")
+if __name__ == "__main__":
+    sendemail()

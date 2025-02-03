@@ -3,7 +3,6 @@ import logging
 import uuid
 from typing import Dict, Any
 import asyncio
-from Ai import initialize_llm, AIAssistant
 from Rag import RAGProcessor  # Changed from RAG to RAGProcessor
 from realTimeSearch import real_time_search
 from weather import get_weather
@@ -12,79 +11,61 @@ from sendEmail import AIService as EmailService, test_service as send_email_inte
 from webScrapeAndProcess import web_search
 # from Audio import speak
 import os
-from response_generation import generate_response
+from voice_assistant.transcription import transcribe_audio
+from voice_assistant.response_generation import generate_response
+from sendEmail import AIService as EmailService, test_service as send_email_interactive
+from voice_assistant.config import Config as config
+from voice_assistant.api_key_manager import get_response_api_key
+from weather import get_weather
+from run_voice_assistant import assistant
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+import json
+with open('credentials.json') as f:
+    credentials = json.load(f)  # Added credentials
+
+with open('token.json') as f:
+    token = json.load(f)  # Added token
+import voice_assistant.config as config
 
 class TaskRouter:
     def __init__(self):
         self.email_service = EmailService()  # Changed from AIService to EmailService
         self.todo_manager = TodoManager()
         self.rag_processor = RAGProcessor()  # Changed from RAG() to RAGProcessor()
-        self.ai_assistant = AIAssistant()  # Added AI Assistant
+        self.get_weather = get_weather()  # Added weather
+        self.assistant = assistant()  # Added assistant
         
-        # Initialize AI models
-        # self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        # genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-        # self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+        # Initialize AI models - No Gemini
         
+        pass # No Gemini model needed here
+
+    def classify_request(self, user_prompt: str) -> Dict[str, Any]:
+        """Classifies user prompt to determine task type."""
+        prompt_lower = user_prompt.lower()
+        if "search" in prompt_lower:
+            if "web" in prompt_lower:
+                return {"type": "WEBSEARCH", "details": {"query": user_prompt}}
+            return {"type": "REALTIME", "details": {}} # Real-time search doesn't need query
+        elif "email" in prompt_lower or "send email" in prompt_lower:
+            return {"type": "EMAIL", "details": {}}
+        elif "todo" in prompt_lower:
+            return {"type": "TODO", "details": {"query": user_prompt}}
+        elif "weather" in prompt_lower: # Added weather
+            return {"type": "WEATHER", "details": {"city": prompt_lower.split("weather in")[-1].strip() if "weather in" in prompt_lower else ""}}
+        else:
+            return {"type": "CONVERSATION", "details": {}}
+
+
     async def analyze_prompt_and_route_task(self, user_prompt: str) -> Dict[str, Any]:
         """Analyzes user prompt and routes to appropriate function"""
         try:
-            classification_prompt = """
-            Analyze this request and classify it. Return JSON structure:
-            For real-time info (weather, time, current events):
-            {
-                "type": "REALTIME",
-                "details": {
-                    "query": "processed query",
-                    "category": "weather|time|news"
-                }
-            }
-            For web search/research:
-            {
-                "type": "WEBSEARCH",
-                "details": {
-                    "query": "search query"
-                }
-            }
-            For emails:
-            {
-                "type": "EMAIL",
-                "details": {
-                    "to": "email@address.com",
-                    "subject": "Generated subject",
-                    "body": "Generated email body"
-                }
-            }
-            For todos:
-            {
-                "type": "TODO",
-                "details": {
-                    "query": "todo task details"
-                }
-            }
-            For general conversation:
-            {
-                "type": "CONVERSATION",
-                "details": {
-                    "query": "conversation query"
-                }
-            }
-            """
-            
             logger.info(f"Processing prompt: {user_prompt}")
             
-            # Use Gemini model directly
-            response = self.gemini_model.generate_content(
-                classification_prompt + f'\nRequest: "{user_prompt}"'
-            )
-            
-            # Clean response text and process
-            response_text = response.text.replace("```json", "").replace("```", "").strip()
-            classification = json.loads(response_text)
+            # Classify input based on keywords
+            classification = self.classify_request(user_prompt)
             
             logger.info(f"Classification: {classification}")
             
@@ -99,32 +80,36 @@ class TaskRouter:
                     return await web_search(search_query)
                     
                 case "EMAIL":
-                    return await self.email_service.handle_email_request(user_prompt)
+                    return await send_email_interactive(user_prompt)
                     
                 case "TODO":
                     return await self.todo_manager.process_natural_language_request(
                         classification["details"]["query"]
                     )
-                
+                case "WEATHER": # Added weather case
+                    city = classification["details"]["city"]
+                    logger.info(f"Fetching weather for: {city}")
+                    return await get_weather(city)
+
                 case "CONVERSATION":
-                    # Use OpenAI for conversation
-                    chat_response = self.openai_client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {"role": "system", "content": "You are a helpful assistant."},
-                            {"role": "user", "content": user_prompt}
-                        ]
-                    )
+                    # Use response_generation.py for conversation
+                    response_api_key = get_response_api_key()
+                    chat_history = []  # Initialize chat history
+                    chat_response = generate_response(config.RESPONSE_MODEL, response_api_key, chat_history, config.LOCAL_MODEL_PATH)
                     return {
                         "status": "success", 
-                        "response": chat_response.choices[0].message.content
+                        "response": chat_response
                     }
                     
                 case _:
                     logger.error(f"Unknown request type: {classification['type']}")
+                    # Default bot response for unknown requests
+                    response_api_key = get_response_api_key()
+                    chat_history = [{"role": "user", "content": "Respond as a helpful bot as you don't understand the request"}]
+                    chat_response = generate_response(config.RESPONSE_MODEL, response_api_key, chat_history, config.LOCAL_MODEL_PATH)
                     return {
                         "status": "error",
-                        "message": f"Unknown request type: {classification['type']}"
+                        "message": chat_response
                     }
 
         except json.JSONDecodeError as e:
@@ -148,20 +133,20 @@ async def route_task(user_prompt: str) -> Dict[str, Any]:
     """Main entry point for task routing"""
     return await task_router.analyze_prompt_and_route_task(user_prompt)
 
-async def main():
-    while True:
-        try:
-            user_prompt = input("What would you like to do? (or 'exit' to quit): ")
-            if user_prompt.lower() == 'exit':
-                break
+# async def main():
+#     while True:
+#         try:
+#             user_prompt = input(transcribe_audio(config.TRANSCRIPTION_MODEL, get_response_api_key(), config.INPUT_AUDIO, config.LOCAL_MODEL_PATH))
+#             if user_prompt.lower() == 'exit':
+#                 break
                 
-            response = await route_task(user_prompt)
-            print("\nResponse:", json.dumps(response, indent=2))
+#             response = await route_task(user_prompt)
+#             print("\nResponse:", json.dumps(response, indent=2))
             
-        except KeyboardInterrupt:
-            break
-        except Exception as e:
-            print(f"Error: {e}")
+#         except KeyboardInterrupt:
+#             break
+#         except Exception as e:
+#             print(f"Error: {e}")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# if __name__ == "__main__":
+#     asyncio.run(main())

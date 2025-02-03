@@ -1,5 +1,3 @@
-# voice_assistant/transcription.py
-
 import json
 import logging
 import requests

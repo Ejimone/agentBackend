@@ -10,8 +10,13 @@ from voice_assistant.config import Config
 from voice_assistant.api_key_manager import get_transcription_api_key, get_response_api_key, get_tts_api_key
 import os
 import weather
-
-
+from sendEmail import AIService as EmailService, sendemail
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from realTimeSearch import real_time_search
+import todo
+import webScrapeAndProcess
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,30 +26,41 @@ init(autoreset=True)
 
 import threading
 
-"""
-here, i will be adding a code function that will be analyzing the user input and then calling the appropriate function,
-the function will automatically route functions, send_email, todo list, weather, real time search, tasks
+def classify_request(user_prompt):
+    """
+    Classifies user prompt to determine task type.
+    """
+    prompt = user_prompt.lower()
+    if "search" in prompt:
+        if "web" in prompt:
+            return {"type": "WEBSEARCH", "details": {"query": user_prompt}}
+        return {"type": "REALTIME", "details": {}}  # Real-time search doesn't need query
+    elif "email" in prompt or "send email" in prompt:
+        sendemail()
+    elif "todo" in prompt:
+        return {"type": "TODO", "details": {"query": user_prompt}}
+    elif "weather" in prompt:
+        return {"type": "WEATHER", "details": {"city": prompt.split("weather in")[-1].strip() if "weather in" in prompt else ""}}
+    else:
+        return {"type": "CONVERSATION", "details": {}}
 
-
-the function will be called analyze_input()
-the analyze_input() will be called in the main function
-"""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+def analyze_input(user_input):
+    """
+    Analyze the user input and call the appropriate function.
+    """
+    task = classify_request(user_input)
+    if task["type"] == "WEBSEARCH":
+        webScrapeAndProcess.web_search(task["details"]["query"])
+    elif task["type"] == "REALTIME":
+        real_time_search()
+    elif task["type"] == "EMAIL":
+        sendemail()
+    elif task["type"] == "TODO":
+        todo.TodoManager()
+    elif task["type"] == "WEATHER":
+        weather.get_weather(task["details"]["city"])
+    else:
+        pass
 
 def main():
     """
@@ -77,6 +93,9 @@ def main():
             if "goodbye" in user_input.lower() or "arrivederci" in user_input.lower():
                 break
 
+            # Analyze the user input and call the appropriate function
+            analyze_input(user_input)
+
             # Append the user's input to the chat history
             chat_history.append({"role": "user", "content": user_input})
 
@@ -103,7 +122,7 @@ def main():
             text_to_speech(Config.TTS_MODEL, tts_api_key, response_text, output_file, Config.LOCAL_MODEL_PATH)
 
             # Play the generated speech audio
-            if Config.TTS_MODEL=="cartesia":
+            if Config.TTS_MODEL == "cartesia":
                 pass
             else:
                 play_audio(output_file)
