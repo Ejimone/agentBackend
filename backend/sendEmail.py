@@ -276,6 +276,24 @@ class AIService:
         except Exception as e:
             logger.error(f"Text generation failed: {e}")
             raise
+    
+    async def send_email_via_assistant(self, to: str, subject: str, body: str) -> Dict[str, Any]:
+        """Send email using the AI service with proper error handling."""
+        if not self.gmail_service:
+            return {"status": "error", "message": "Gmail service not initialized"}
+        
+        try:
+            message = self._create_email_message(to, subject, body)
+            sent_message = await self._send_email_message(message)
+            return {
+                "status": "success",
+                "message_id": sent_message['id'],
+                "details": {"to": to, "subject": subject}
+            }
+        except Exception as e:
+            logger.error(f"Unexpected error sending email: {e}")
+            return {"status": "error", "message": str(e)}
+
 
 async def test_service(service: AIService) -> None:
     """Test all service functionalities"""
@@ -384,6 +402,9 @@ def sendemail():
         print(f"❌ Error: {str(e)}")
     finally:
         logger.info("Test suite execution completed")
+
+
+        
 
 if __name__ == "__main__":
     sendemail()
