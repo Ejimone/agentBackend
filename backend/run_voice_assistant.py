@@ -125,11 +125,6 @@ class TaskHandler:
                 print("Invalid email format. Please try again.")
                 to_email = input("Enter receiver's email address: ").strip()
             
-            email_title = input("Enter email title/subject: ").strip()
-            while not email_title:
-                print("Title cannot be empty. Please try again.")
-                email_title = input("Enter email title/subject: ").strip()
-            
             sender_name = input("Enter your name: ").strip()
             while not sender_name:
                 print("Name cannot be empty. Please try again.")
@@ -140,18 +135,59 @@ class TaskHandler:
                 print("Receiver's name cannot be empty. Please try again.")
                 receiver_name = input("Enter the receiver's name: ").strip()
 
-            # Get user's request for email content
-            email_body = input("Enter your email message: ").strip()
-            while not email_body:
-                print("Email message cannot be empty. Please try again.")
+            # Ask if user wants AI to generate content
+            use_ai = input("Would you like AI to help generate the email content? (yes/no): ").lower().strip()
+            
+            if use_ai == 'yes':
+                # Get user's request for email content
+                content_request = input("Please describe what you want the email to be about: ").strip()
+                
+                # Generate email body using Config.RESPONSE_MODEL
+                response_api_key = get_response_api_key()
+                prompt = f"Write a professional email about: {content_request}. The email is from {sender_name} to {receiver_name}."
+                
+                email_body = generate_response(
+                    Config.RESPONSE_MODEL,
+                    response_api_key,
+                    [{"role": "user", "content": prompt}],
+                    Config.LOCAL_MODEL_PATH
+                )
+                
+                # Generate engaging title
+                title_prompt = f"Generate an engaging and professional email subject line for an email about: {content_request}"
+                email_title = generate_response(
+                    Config.RESPONSE_MODEL,
+                    response_api_key,
+                    [{"role": "user", "content": title_prompt}],
+                    Config.LOCAL_MODEL_PATH
+                )
+            else:
+                email_title = input("Enter email title/subject: ").strip()
+                while not email_title:
+                    print("Title cannot be empty. Please try again.")
+                    email_title = input("Enter email title/subject: ").strip()
+                
                 email_body = input("Enter your email message: ").strip()
+                while not email_body:
+                    print("Email message cannot be empty. Please try again.")
+                    email_body = input("Enter your email message: ").strip()
 
-            # Format the email body with sender and receiver names
+            # Format the email body
             formatted_body = (
                 f"Dear {receiver_name},\n\n"
                 f"{email_body}\n\n"
                 f"Best regards,\n{sender_name}"
             )
+
+            # Show preview and ask for approval
+            print("\n=== Email Preview ===")
+            print(f"To: {to_email}")
+            print(f"Subject: {email_title}")
+            print(f"\n{formatted_body}")
+            
+            approval = input("\nWould you like to send this email? (yes/no): ").lower().strip()
+            if approval != 'yes':
+                return "Email sending cancelled by user"
 
             # Send the email using the email service
             result = asyncio.run(email_service.send_email_via_assistant(
@@ -223,7 +259,11 @@ def main_loop():
              Your answers are short and concise. When asked questions,
              you will provide the best possible answers. You can send emails,
              search the web, check the weather, and more. You are romantic
-             and friendly. eliminate the `*` when you're giving a response, this will make it easier for the user to understand because it will be translated to speech."""
+             and friendly. eliminate the `*` when you're giving a response, this will make it easier for the user to understand because it will be translated to speech.
+             for the email, make sure you remove stuffs like this when you're giving a response or generating a response "Here are a few options for an engaging and professional email subject line", this kind of information is not needed in the email response, it would be better if you just give the email subject line directly,
+             it also applies to the title generation, just give the title directly, the user will understand better.,
+             also make sure you remove the `*` when you're giving a response, this will make it easier for the user to understand because it will be translated to speech, this also applies to todo, weather, and web search, make sure you remove the `*` when you're giving a response, this will make it easier for the user to understand because it will be translated to speech.
+             """
         }
     ]
 
