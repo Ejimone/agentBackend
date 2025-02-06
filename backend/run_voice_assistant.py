@@ -176,7 +176,7 @@ class TaskHandler:
             formatted_body = (
                 f"Dear {receiver_name},\n\n"
                 f"{email_body}\n\n"
-                f"Best regards,\n{sender_name}"
+                # f"Best regards,\n{sender_name}"
             )
 
             # Show preview and ask for approval
@@ -263,6 +263,7 @@ def main_loop():
              for the email, make sure you remove stuffs like this when you're giving a response or generating a response "Here are a few options for an engaging and professional email subject line", this kind of information is not needed in the email response, it would be better if you just give the email subject line directly,
              it also applies to the title generation, just give the title directly, the user will understand better.,
              also make sure you remove the `*` when you're giving a response, this will make it easier for the user to understand because it will be translated to speech, this also applies to todo, weather, and web search, make sure you remove the `*` when you're giving a response, this will make it easier for the user to understand because it will be translated to speech.
+             do not give suggestions when you're giving an email title, just go straight to the point and give the email title directly, the user will understand better.
              """
         }
     ]

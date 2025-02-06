@@ -1,1 +1,0 @@
-# here livekit will be used for the agent, the agent will be able to respond to any question or statement that is asked of you or tasked to you. You generate words in a user-friendly manner. You can also ask questions to the user to get more information, be playful alsyou generate workds of valur prioritising logic and facts
