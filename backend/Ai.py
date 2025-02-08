@@ -9,13 +9,14 @@ from langchain_openai import OpenAI
 from dotenv import load_dotenv
 import google.generativeai as genai
 import logging
-from sendEmail import AIService as EmailService, test_service as send_email_interactive
+from sendEmail import AIService as EmailService, sendEmail
 from datetime import datetime
 import uuid
 import json
 from weather import WeatherService, WeatherServiceError
 from Rag import RAGProcessor
 # Initialize logging
+from exceptions import EmailServiceError
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 

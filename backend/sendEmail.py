@@ -293,9 +293,10 @@ class AIService:
         except Exception as e:
             logger.error(f"Unexpected error sending email: {e}")
             return {"status": "error", "message": str(e)}
+            
 
 
-async def test_service(service: AIService) -> None:
+async def sendEmail(service: AIService) -> None:
     """Test all service functionalities"""
     try:
         # Test time functionality
@@ -368,7 +369,7 @@ async def test_service(service: AIService) -> None:
                              f"This is an automated email based on your request: "
                              f"{user_request}\n\nBest regards,\n{sender_name}")
 
-            print("\nSending test email...")
+            print("\nSending  email...")
             try:
                 result = await service.send_email(to_email, email_title, email_body)
                 if result.get("status") == "success":
@@ -380,7 +381,7 @@ async def test_service(service: AIService) -> None:
             except Exception as e:
                 print(f"\n❌ Error sending email: {str(e)}")
         
-        print("\n=== Test Suite Completed ===")
+        print("\n=== Email Sent ===")
 
     except Exception as e:
         print(f"❌ Error during testing: {str(e)}")
@@ -395,7 +396,7 @@ def sendemail():
         import asyncio
         if os.name == 'nt':  # Windows
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-        asyncio.run(test_service(service))
+        asyncio.run(sendEmail(service))
         
     except Exception as e:
         logger.error(f"Service initialization failed: {e}")
