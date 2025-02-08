@@ -64,8 +64,19 @@ class WebScraper:
     
     def __init__(self, config: ScraperConfig = ScraperConfig()):
         self.config = config
-        self.session = aiohttp.ClientSession()
+        self.session = None
         self.gemini_model = self._initialize_gemini()
+
+    async def init_session(self):
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+        return self
+
+    async def close(self) -> None:
+        """Cleanup resources"""
+        if self.session:
+            await self.session.close()
+            self.session = None
 
     def _initialize_gemini(self) -> genai.GenerativeModel:
         """Initialize Gemini model with validation"""
@@ -75,10 +86,6 @@ class WebScraper:
         except Exception as e:
             logger.error("Failed to initialize Gemini model: %s", e)
             raise ScraperError("Gemini initialization failed") from e
-
-    async def close(self) -> None:
-        """Cleanup resources"""
-        await self.session.close()
 
     @retry(
         stop=stop_after_attempt(ScraperConfig.MAX_RETRIES),

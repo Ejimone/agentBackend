@@ -308,9 +308,14 @@ async def entrypoint(ctx: JobContext):
         # Normal task processing
         task = task_router.classify_request(text)
         response = await task_router.handle_task(task["type"], task["details"], agent)
-        
+
         if response:
-            await agent.say(response, allow_interruptions=True)
+            try:
+                await agent.say(response, allow_interruptions=True)
+            except asyncio.CancelledError as e:
+                logger.error(f"CancelledError in agent.say: {e}")
+            except Exception as e:
+                logger.error(f"Error in agent.say: {e}")
         else:
             # Fallback to LLM conversation
             await agent.process_message(text)

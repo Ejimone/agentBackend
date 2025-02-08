@@ -21,7 +21,7 @@ class Config:
     # Model selection 
     TRANSCRIPTION_MODEL = 'deepgram'  # I am thinking og using theses oga eme ka everthing diri anyi easy for maintenance and values: openai, groq, deepgram, fastwhisperapi
     RESPONSE_MODEL = 'groq'  # I am thinking og using theses oga eme ka everthing diri anyi easy for maintenance and values: openai, groq, ollama
-    TTS_MODEL = 'deepgram'  # I am thinking og using theses oga eme ka everthing diri anyi easy for maintenance and values: openai, deepgram, elevenlabs, melotts, cartesia
+    TTS_MODEL = 'cartesia'  # I am thinking og using theses oga eme ka everthing diri anyi easy for maintenance and values: openai, deepgram, elevenlabs, melotts, cartesia
 
     # LLM Selection
     OLLAMA_LLM="llama3:8b"
