@@ -154,12 +154,13 @@ class AIService:
         if PathConfig.TOKEN_PATH.exists():
             logger.info("Token file exists. Attempting to load credentials from token file.") # Log if token file exists
             try:
-                with open(PathConfig.TOKEN_PATH, 'rb') as token:
-                    creds = pickle.load(token)
-                logger.info("Credentials loaded from token file.") # Log if credentials loaded successfully
-            except Exception as e:
-                logger.error(f"Error loading credentials from token file: {e}") # Log error if loading fails
-                creds = None # Ensure creds is None if loading fails
+                with open(PathConfig.TOKEN_PATH, 'r', encoding='utf-8') as token:
+                    token_data = json.load(token)
+                    creds = Credentials.from_authorized_user_info(token_data, self.config.SCOPES)
+            except (UnicodeDecodeError, json.JSONDecodeError) as e:
+                logger.warning(f"Error reading token file: {e}")
+                # Delete corrupted token file
+                PathConfig.TOKEN_PATH.unlink(missing_ok=True)
         else:
             logger.info("Token file does not exist.") # Log if token file doesn't exist
 
@@ -178,8 +179,8 @@ class AIService:
                 creds = flow.run_local_server(port=0)
                 logger.info("New credentials obtained.") # Log if new credentials obtained
             
-            with open(PathConfig.TOKEN_PATH, 'wb') as token:
-                pickle.dump(creds, token)
+            with open(PathConfig.TOKEN_PATH, 'w', encoding='utf-8') as token:
+                token.write(creds.to_json())
                 logger.info("Credentials saved to token file.") # Log if credentials saved to token file
         else:
             logger.info("Valid credentials found.") # Log if valid credentials found

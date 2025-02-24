@@ -23,7 +23,7 @@ from livekit.agents.pipeline import VoicePipelineAgent
 from livekit.plugins import silero, openai, elevenlabs, deepgram
 
 # Local imports
-from dummy.realtimeSearch import real_time_search
+from realTimeSearch import real_time_search
 import todo
 from webScrapeAndProcess import WebScraper
 from sendEmail import AIService as EmailService
@@ -40,6 +40,7 @@ class TaskRouter:
         self.email_service = EmailService()
         self.weather_service = WeatherService()
         self.web_scraper = WebScraper()
+        self.todo_manager = todo.TodoManager()  # Initialize TodoManager
         self.task_handlers = {
             "WEBSEARCH": self._handle_web_search,
             "REALTIME": self._handle_real_time,
@@ -161,7 +162,7 @@ class TaskRouter:
         if not query:
             return "Please specify what real-time information you need."
 
-        results = await real_time_search({"query": query})
+        results = await real_time_search(query)
         if results and results.get("data"):
             return f"Real-time info:\n{results['data'][:500]}..."
         else:
@@ -173,8 +174,11 @@ class TaskRouter:
         if not task:
             return "Please specify the todo task."
 
-        result = await asyncio.to_thread(todo.TodoManager()(task))
-        return f"Todo list updated: {result}"
+        result = await self.todo_manager.process_natural_language_request(task)
+        if result["status"] == "success":
+            return f"Todo created: {result['todo']['title']}"
+        else:
+            return f"Failed to create todo: {result.get('message', 'Unknown error')}"
 
     async def _handle_conversation(self, details: Dict[str, Any], agent: VoicePipelineAgent) -> str:
         """Handle general conversations using the LLM."""

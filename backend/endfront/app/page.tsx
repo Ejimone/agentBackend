@@ -13,18 +13,15 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { MediaDeviceFailure } from "livekit-client";
 import type { ConnectionDetails } from "./api/connection-details/route";
-import { NoAgentNotification } from "@/components/NoAgentNotification";
-import { CloseIcon } from "@/components/CloseIcon";
+import { NoAgentNotification } from "../components/NoAgentNotification";
+import { CloseIcon } from "../components/CloseIcon";
 import { useKrispNoiseFilter } from "@livekit/components-react/krisp";
-import { EmailDialog } from '../components/EmailDialog';
 
 export default function Page() {
   const [connectionDetails, updateConnectionDetails] = useState<
     ConnectionDetails | undefined
   >(undefined);
   const [agentState, setAgentState] = useState<AgentState>("disconnected");
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [generatedEmail, setGeneratedEmail] = useState('');
 
   const onConnectButtonClicked = useCallback(async () => {
     // Generate room connection details, including:
@@ -44,14 +41,6 @@ export default function Page() {
     const response = await fetch(url.toString());
     const connectionDetailsData = await response.json();
     updateConnectionDetails(connectionDetailsData);
-  }, []);
-
-  // Listen for generated emails from the agent
-  useEffect(() => {
-    // Set up WebSocket or other communication method with backend
-    // When email is generated, call:
-    // setGeneratedEmail(content);
-    // setEmailDialogOpen(true);
   }, []);
 
   return (
@@ -79,12 +68,6 @@ export default function Page() {
         <RoomAudioRenderer />
         <NoAgentNotification state={agentState} />
       </LiveKitRoom>
-      
-      <EmailDialog
-        open={emailDialogOpen}
-        onClose={() => setEmailDialogOpen(false)}
-        initialContent={generatedEmail}
-      />
     </main>
   );
 }
