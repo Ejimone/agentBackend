@@ -22,7 +22,7 @@ PyAudio==0.2.14
 pydantic
 pydantic_core
 pygame==2.5.2
-requests==2.31.0
+==2.31.0
 setuptools==69.5.1
 sniffio==1.3.1
 SpeechRecognition==3.10.4
@@ -34,7 +34,7 @@ deepgram-sdk
 groq
 python-dotenv
 colorama
-requests
+
 keyboard
 elevenlabs
 fastapi
@@ -45,3 +45,14 @@ cartesia
 soundfile
 ollama
 pydub
+python-dotenv
+livekit
+livekit-agents
+av
+livekit-plugins
+requests
+pytz
+cachetools
+langchain-community
+langchain-openai
+google-generativeai
