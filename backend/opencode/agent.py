@@ -19,7 +19,8 @@ from livekit.agents import (
     cli,
     llm,
 )
-from livekit.agents.pipeline import VoicePipelineAgent
+from livekit.agents import VoiceAgent  # Changed import again
+
 from livekit.plugins import silero, openai, elevenlabs, deepgram
 
 # Local imports
@@ -94,7 +95,7 @@ class TaskRouter:
 
         return {"type": task_type, "details": details}
 
-    async def handle_task(self, task_type: str, details: Dict[str, Any], agent: VoicePipelineAgent) -> str:
+    async def handle_task(self, task_type: str, details: Dict[str, Any], agent: VoiceAgent) -> str:
         """Orchestrate task handling with proper timeouts and error management."""
         try:
             handler = self.task_handlers.get(task_type, self._handle_conversation)
@@ -109,7 +110,7 @@ class TaskRouter:
             logger.error(f"Task error: {str(e)}")
             return f"Sorry, I encountered an error: {str(e)}"
 
-    async def _handle_web_search(self, details: Dict[str, Any], agent: VoicePipelineAgent) -> str:
+    async def _handle_web_search(self, details: Dict[str, Any], agent: VoiceAgent) -> str:
         """Process web search requests with result summarization."""
         query = details.get("query", "")
         if not query:
@@ -118,7 +119,7 @@ class TaskRouter:
         results = await self.web_scraper.web_search(query)
         return self._format_search_results(results)
 
-    async def _handle_email(self, details: Dict[str, Any], agent: VoicePipelineAgent) -> str:
+    async def _handle_email(self, details: Dict[str, Any], agent: VoiceAgent) -> str:
         """Handle email composition and sending with confirmation flow."""
         email_data = await self._generate_email_content(details, agent)
         result = await self.email_service.send_email_via_assistant(**email_data)
@@ -127,7 +128,7 @@ class TaskRouter:
         else:
             return f"Failed to send email: {result.get('message', 'Unknown error')}"
 
-    async def _handle_weather(self, details: Dict[str, Any], agent: VoicePipelineAgent) -> str:
+    async def _handle_weather(self, details: Dict[str, Any], agent: VoiceAgent) -> str:
         """Fetch and format weather information for a given location."""
         location = details.get("query", "")
         if not location:
@@ -144,7 +145,7 @@ class TaskRouter:
         else:
             return "Could not retrieve weather information."
 
-    async def _handle_web_scrape(self, details: Dict[str, Any], agent: VoicePipelineAgent) -> str:
+    async def _handle_web_scrape(self, details: Dict[str, Any], agent: VoiceAgent) -> str:
         """Scrape content from a URL and provide a summary."""
         url = details.get("query", "")
         if not url:
@@ -156,7 +157,7 @@ class TaskRouter:
         else:
             return "Failed to scrape content from the URL."
 
-    async def _handle_real_time(self, details: Dict[str, Any], agent: VoicePipelineAgent) -> str:
+    async def _handle_real_time(self, details: Dict[str, Any], agent: VoiceAgent) -> str:
         """Fetch and present real-time information based on the query."""
         query = details.get("query", "")
         if not query:
@@ -168,7 +169,7 @@ class TaskRouter:
         else:
             return "Could not retrieve real-time information."
 
-    async def _handle_todo(self, details: Dict[str, Any], agent: VoicePipelineAgent) -> str:
+    async def _handle_todo(self, details: Dict[str, Any], agent: VoiceAgent) -> str:
         """Manage a todo list based on user commands."""
         task = details.get("query", "")
         if not task:
@@ -180,11 +181,11 @@ class TaskRouter:
         else:
             return f"Failed to create todo: {result.get('message', 'Unknown error')}"
 
-    async def _handle_conversation(self, details: Dict[str, Any], agent: VoicePipelineAgent) -> str:
+    async def _handle_conversation(self, details: Dict[str, Any], agent: VoiceAgent) -> str:
         """Handle general conversations using the LLM."""
         return None
 
-    async def _generate_email_content(self, details: Dict[str, Any], agent: VoicePipelineAgent) -> Dict[str, str]:
+    async def _generate_email_content(self, details: Dict[str, Any], agent: VoiceAgent) -> Dict[str, str]:
         """Generate email content and subject using the LLM."""
         content = details.get("content", "")
         to_email = details.get("to", "")
@@ -266,7 +267,7 @@ async def entrypoint(ctx: JobContext):
     participant = await ctx.wait_for_participant()
     logger.info(f"starting voice assistant for participant {participant.identity}")
 
-    agent = VoicePipelineAgent(
+    agent = VoiceAgent(  # Changed class name again
         vad=ctx.proc.userdata["vad"],
         stt=ctx.proc.userdata["stt"],
         llm=ctx.proc.userdata["llm"],
